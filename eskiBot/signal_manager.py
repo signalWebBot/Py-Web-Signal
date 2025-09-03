@@ -381,38 +381,8 @@ class SignalManager:
             return self._get_sample_trade_history()
     
     def _get_sample_trade_history(self) -> List[str]:
-        """Örnek trade history döndürür"""
-        current_time = datetime.now(self.turkey_timezone)
-        
-        sample_history = []
-        sample_data = [
-            (4, 24, 5355.97, 66.4, 71.6, 15.9),
-            (2, 9, 141.43, 0.0, 3.2, 0.4),
-            (14, 34, 130.26, 0.0, 3.0, 0.2),
-            (11, 33, 140.68, 0.0, -0.1, 0.2),
-            (11, 22, 193.92, 0.0, -0.1, 0.2),
-            (11, 18, 188.20, 0.0, -0.1, 0.2),
-            (11, 11, 160.55, 0.0, -0.2, 0.2),
-            (11, 8, 137.90, 0.0, -0.1, 0.2),
-            (10, 57, 228.83, 0.0, -0.2, 0.3),
-            (10, 26, 179.00, 0.0, 0.4, 0.2)
-        ]
-        
-        for i, (hour, minute, amount, before, after, vol_change) in enumerate(sample_data):
-            if i == 0:
-                # Bugün
-                past_time = current_time.replace(hour=hour, minute=minute)
-            else:
-                # Dün
-                past_time = (current_time - timedelta(days=1)).replace(hour=hour, minute=minute)
-            
-            date_str = past_time.strftime("%d.%m")
-            time_str = past_time.strftime("%H:%M")
-            
-            line = f"{date_str} {time_str}    +{amount:,.2f}  {before:.1f}% => {after:.1f}% - V: % {vol_change:.1f}"
-            sample_history.append(line)
-        
-        return sample_history
+        """Örnek trade history döndürür - artık boş liste döndürür"""
+        return []
     
     def _calculate_5min_cash(self, currency_pair: str) -> float:
         """5 dakikalık nakit hesaplaması"""
@@ -420,7 +390,7 @@ class SignalManager:
             # Son 5 dakikanın trade history'sini çek
             trades = self.gateio_api.get_trades_history(currency_pair, limit=50)
             if not trades:
-                return 8396.0  # Örnek değer
+                return 0.0  # Gerçek veri yoksa 0 döndür
             
             current_time = datetime.now(self.turkey_timezone)
             five_min_ago = current_time - timedelta(minutes=5)
