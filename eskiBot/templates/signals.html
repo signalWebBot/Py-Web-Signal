@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Sinyaller - Signal Web{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">🔔 Sinyaller</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshSignals()">
+                <i class="fas fa-sync-alt"></i> Yenile
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filtreleme -->
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" class="form-control" id="searchInput" placeholder="Coin ara...">
+            <button class="btn btn-outline-secondary" type="button" onclick="searchSignals()">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+    </div>
+    <div class="col-md-6 text-end">
+        <small class="text-muted">
+            Toplam <strong id="totalSignalsCount">0</strong> sinyal
+        </small>
+    </div>
+</div>
+
+<!-- Sinyaller Tablosu -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th onclick="sortTable('symbol')" style="cursor: pointer;">
+                            Coin <i class="fas fa-sort"></i>
+                        </th>
+                        <th onclick="sortTable('percentage')" style="cursor: pointer;">
+                            Artış % <i class="fas fa-sort"></i>
+                        </th>
+                        <th onclick="sortTable('price')" style="cursor: pointer;">
+                            Fiyat <i class="fas fa-sort"></i>
+                        </th>
+                        <th onclick="sortTable('volume_24h')" style="cursor: pointer;">
+                            Hacim <i class="fas fa-sort"></i>
+                        </th>
+                        <th>Kategori</th>
+                        <th>5dk Nakit</th>
+                        <th onclick="sortTable('timestamp')" style="cursor: pointer;">
+                            Zaman <i class="fas fa-sort"></i>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody id="signalsTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">Sinyaller yükleniyor...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let allSignals = [];
+    let filteredSignals = [];
+    let sortColumn = 'timestamp';
+    let sortDirection = 'desc';
+    
+    // Sayfa yüklendiğinde
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSignals();
+        
+        // Arama input'u için event listener
+        document.getElementById('searchInput').addEventListener('input', function() {
+            searchSignals();
+        });
+    });
+    
+    // Sinyalleri yükle
+    function loadSignals() {
+        fetch('/api/signals')
+            .then(response => response.json())
+            .then(data => {
+                allSignals = data.signals || [];
+                filteredSignals = [...allSignals];
+                updateSignalsTable();
+                updateSignalsCount();
+            })
+            .catch(error => {
+                console.error('Sinyaller yüklenemedi:', error);
+                document.getElementById('signalsTableBody').innerHTML = 
+                    '<tr><td colspan="7" class="text-center text-danger">Sinyaller yüklenemedi</td></tr>';
+            });
+    }
+    
+    // Sinyaller tablosunu güncelle
+    function updateSignalsTable() {
+        const tbody = document.getElementById('signalsTableBody');
+        
+        if (filteredSignals.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Henüz sinyal yok</td></tr>';
+            return;
+        }
+        
+        // Sıralama uygula
+        const sortedSignals = [...filteredSignals].sort((a, b) => {
+            let aVal = a[sortColumn];
+            let bVal = b[sortColumn];
+            
+            if (sortColumn === 'timestamp') {
+                aVal = new Date(aVal);
+                bVal = new Date(bVal);
+            }
+            
+            if (sortDirection === 'asc') {
+                return aVal > bVal ? 1 : -1;
+            } else {
+                return aVal < bVal ? 1 : -1;
+            }
+        });
+        
+        tbody.innerHTML = sortedSignals.map(signal => `
+            <tr>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <span class="badge bg-primary me-2">${signal.signal_type || 'SİNYAL'}</span>
+                        <div>
+                            <strong>${signal.symbol}</strong>
+                            <br>
+                            <small class="text-muted">${signal.currency_pair}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-success fs-6">
+                        +${signal.percentage.toFixed(2)}%
+                    </span>
+                </td>
+                <td>
+                    <strong>$${signal.price.toFixed(8)}</strong>
+                </td>
+                <td>
+                    ${formatVolume(signal.volume_24h)}
+                </td>
+                <td>
+                    ${getVolumeCategoryBadge(signal.volume_category)}
+                </td>
+                <td>
+                    $${signal.cash_5min ? signal.cash_5min.toLocaleString() : '0'}
+                </td>
+                <td>
+                    <div class="text-nowrap">
+                        ${new Date(signal.timestamp).toLocaleDateString('tr-TR')}
+                        <br>
+                        <small class="text-muted">
+                            ${new Date(signal.timestamp).toLocaleTimeString('tr-TR')}
+                        </small>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // Sinyal sayısını güncelle
+    function updateSignalsCount() {
+        document.getElementById('totalSignalsCount').textContent = filteredSignals.length;
+    }
+    
+    // Sinyalleri ara
+    function searchSignals() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        
+        if (searchTerm === '') {
+            filteredSignals = [...allSignals];
+        } else {
+            filteredSignals = allSignals.filter(signal => 
+                signal.symbol.toLowerCase().includes(searchTerm) ||
+                signal.currency_pair.toLowerCase().includes(searchTerm)
+            );
+        }
+        
+        updateSignalsTable();
+        updateSignalsCount();
+    }
+    
+    // Tabloyu sırala
+    function sortTable(column) {
+        if (sortColumn === column) {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortColumn = column;
+            sortDirection = 'desc';
+        }
+        
+        updateSignalsTable();
+    }
+    
+    // Sinyalleri yenile
+    function refreshSignals() {
+        loadSignals();
+        showNotification('Yenilendi', 'Sinyaller güncellendi');
+    }
+    
+    // Yardımcı fonksiyonlar
+    function formatVolume(volume) {
+        if (volume >= 1000000) {
+            return (volume / 1000000).toFixed(2) + 'M';
+        } else if (volume >= 1000) {
+            return (volume / 1000).toFixed(2) + 'K';
+        }
+        return volume.toFixed(0);
+    }
+    
+    function getVolumeCategoryBadge(category) {
+        const badges = {
+            'high': '<span class="badge bg-success">Yüksek</span>',
+            'medium': '<span class="badge bg-warning">Orta</span>',
+            'low': '<span class="badge bg-danger">Düşük</span>'
+        };
+        return badges[category] || '<span class="badge bg-secondary">Bilinmiyor</span>';
+    }
+    
+    function showNotification(title, message) {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: message });
+        }
+    }
+</script>
+{% endblock %}

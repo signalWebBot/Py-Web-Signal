@@ -1,0 +1,348 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Signal Web{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">📊 Dashboard</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshData()">
+                <i class="fas fa-sync-alt"></i> Yenile
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Bot Durumu -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h5 class="card-title mb-1">
+                            <span class="status-indicator" id="botStatusIndicator"></span>
+                            Bot Durumu
+                        </h5>
+                        <p class="card-text text-muted mb-0">
+                            <span id="botStatusText">Bilinmiyor</span> • 
+                            Son güncelleme: <span id="lastUpdate">-</span>
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button type="button" class="btn btn-success me-2" id="startBotBtn" onclick="startBot()">
+                            <i class="fas fa-play"></i> Başlat
+                        </button>
+                        <button type="button" class="btn btn-danger" id="stopBotBtn" onclick="stopBot()" style="display: none;">
+                            <i class="fas fa-stop"></i> Durdur
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- İstatistikler -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Toplam Sinyal
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="totalSignals">0</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-bell fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Aktif Takip
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="activeTracking">0</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-eye fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Son Sinyal
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="lastSignalTime">Yok</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Bot Durumu
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="botStatus">Durduruldu</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-robot fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Son Sinyaller -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-bell"></i> Son Sinyaller
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered" id="signalsTable">
+                        <thead>
+                            <tr>
+                                <th>Coin</th>
+                                <th>Artış %</th>
+                                <th>Fiyat</th>
+                                <th>Hacim</th>
+                                <th>Kategori</th>
+                                <th>Zaman</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signalsTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">Henüz sinyal yok</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .border-left-primary {
+        border-left: 0.25rem solid #4e73df !important;
+    }
+    .border-left-success {
+        border-left: 0.25rem solid #1cc88a !important;
+    }
+    .border-left-info {
+        border-left: 0.25rem solid #36b9cc !important;
+    }
+    .border-left-warning {
+        border-left: 0.25rem solid #f6c23e !important;
+    }
+    .text-xs {
+        font-size: 0.7rem;
+    }
+    .text-gray-300 {
+        color: #dddfeb !important;
+    }
+    .text-gray-800 {
+        color: #5a5c69 !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let refreshInterval;
+    
+    // Sayfa yüklendiğinde
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBotStatus();
+        loadSignals();
+        
+        // Her 5 saniyede bir güncelle
+        refreshInterval = setInterval(function() {
+            loadBotStatus();
+            loadSignals();
+        }, 5000);
+    });
+    
+    // Bot durumunu yükle
+    function loadBotStatus() {
+        fetch('/api/bot/status')
+            .then(response => response.json())
+            .then(data => {
+                updateBotStatus(data);
+            })
+            .catch(error => {
+                console.error('Bot durumu yüklenemedi:', error);
+            });
+    }
+    
+    // Bot durumunu güncelle
+    function updateBotStatus(data) {
+        const status = data.status;
+        const stats = data.stats;
+        
+        // Bot durumu göstergesi
+        const indicator = document.getElementById('botStatusIndicator');
+        const statusText = document.getElementById('botStatusText');
+        const botStatus = document.getElementById('botStatus');
+        
+        if (status === 'running') {
+            indicator.className = 'status-indicator status-online';
+            statusText.textContent = 'Çalışıyor';
+            botStatus.textContent = 'Çalışıyor';
+            document.getElementById('startBotBtn').style.display = 'none';
+            document.getElementById('stopBotBtn').style.display = 'inline-block';
+        } else {
+            indicator.className = 'status-indicator status-offline';
+            statusText.textContent = 'Durduruldu';
+            botStatus.textContent = 'Durduruldu';
+            document.getElementById('startBotBtn').style.display = 'inline-block';
+            document.getElementById('stopBotBtn').style.display = 'none';
+        }
+        
+        // İstatistikleri güncelle
+        document.getElementById('totalSignals').textContent = stats.total_signals || 0;
+        document.getElementById('activeTracking').textContent = stats.active_tracking || 0;
+        document.getElementById('lastSignalTime').textContent = stats.last_signal_time || 'Yok';
+        document.getElementById('lastUpdate').textContent = data.last_update || '-';
+    }
+    
+    // Sinyalleri yükle
+    function loadSignals() {
+        fetch('/api/signals')
+            .then(response => response.json())
+            .then(data => {
+                updateSignalsTable(data.signals);
+            })
+            .catch(error => {
+                console.error('Sinyaller yüklenemedi:', error);
+            });
+    }
+    
+    // Sinyaller tablosunu güncelle
+    function updateSignalsTable(signals) {
+        const tbody = document.getElementById('signalsTableBody');
+        
+        if (signals.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Henüz sinyal yok</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = signals.slice(0, 10).map(signal => `
+            <tr>
+                <td>
+                    <strong>${signal.symbol}</strong>
+                    <br>
+                    <small class="text-muted">${signal.currency_pair}</small>
+                </td>
+                <td>
+                    <span class="badge bg-success">+${signal.percentage.toFixed(2)}%</span>
+                </td>
+                <td>$${signal.price.toFixed(8)}</td>
+                <td>${formatVolume(signal.volume_24h)}</td>
+                <td>
+                    ${getVolumeCategoryBadge(signal.volume_category)}
+                </td>
+                <td>
+                    ${new Date(signal.timestamp).toLocaleString('tr-TR')}
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    // Bot başlat
+    function startBot() {
+        fetch('/api/bot/start', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'started') {
+                    showNotification('Bot Başlatıldı', 'Sinyal botu başarıyla başlatıldı');
+                    loadBotStatus();
+                }
+            })
+            .catch(error => {
+                console.error('Bot başlatılamadı:', error);
+                showNotification('Hata', 'Bot başlatılamadı');
+            });
+    }
+    
+    // Bot durdur
+    function stopBot() {
+        fetch('/api/bot/stop', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'stopped') {
+                    showNotification('Bot Durduruldu', 'Sinyal botu durduruldu');
+                    loadBotStatus();
+                }
+            })
+            .catch(error => {
+                console.error('Bot durdurulamadı:', error);
+            });
+    }
+    
+    // Verileri yenile
+    function refreshData() {
+        loadBotStatus();
+        loadSignals();
+        showNotification('Yenilendi', 'Veriler güncellendi');
+    }
+    
+    // Yardımcı fonksiyonlar
+    function formatVolume(volume) {
+        if (volume >= 1000000) {
+            return (volume / 1000000).toFixed(2) + 'M';
+        } else if (volume >= 1000) {
+            return (volume / 1000).toFixed(2) + 'K';
+        }
+        return volume.toFixed(0);
+    }
+    
+    function getVolumeCategoryBadge(category) {
+        const badges = {
+            'high': '<span class="badge bg-success">Yüksek</span>',
+            'medium': '<span class="badge bg-warning">Orta</span>',
+            'low': '<span class="badge bg-danger">Düşük</span>'
+        };
+        return badges[category] || '<span class="badge bg-secondary">Bilinmiyor</span>';
+    }
+    
+    function showNotification(title, message) {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: message });
+        }
+    }
+</script>
+{% endblock %}

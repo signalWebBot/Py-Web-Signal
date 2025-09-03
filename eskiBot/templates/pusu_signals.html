@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Pusu Sinyal - Signal Web{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">🎯 Pusu Sinyal</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshPusu()">
+                <i class="fas fa-sync-alt"></i> Yenile
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <i class="fas fa-info-circle"></i>
+    Bu sayfa henüz geliştiriliyor. Pusu sinyalleri burada görüntülenecek.
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Pusu Sinyalleri</h5>
+        <p class="card-text">Python bot entegrasyonu tamamlandıktan sonra bu sayfa aktif olacak.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function refreshPusu() {
+        showNotification('Yenilendi', 'Pusu sinyalleri güncellendi');
+    }
+    
+    function showNotification(title, message) {
+        if (Notification.permission === 'granted') {
+            new Notification(title, { body: message });
+        }
+    }
+</script>
+{% endblock %}
