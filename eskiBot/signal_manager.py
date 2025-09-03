@@ -61,6 +61,9 @@ class SignalManager:
                 # Ana tarama (15 saniye)
                 self._perform_main_scan(current_time)
                 
+                # PUSU Sinyal kontrolü (15 saniye)
+                self.check_pusu_signals(current_time)
+                
                 # Takip edilen coinleri kontrol et (45 saniye)
                 self._check_followed_coins(current_time)
                 
@@ -567,3 +570,128 @@ class SignalManager:
         except Exception as e:
             print(f"Latest signals hatası: {e}")
             return []
+    
+    def check_pusu_signals(self, current_time):
+        """PUSU Sinyal kontrolü - 95 mum analizi ile"""
+        try:
+            print("🎯 PUSU Sinyal kontrolü başlatılıyor...")
+            
+            # Tüm ticker'ları al
+            tickers_data = self.gateio_api.get_all_tickers()
+            if not tickers_data:
+                return
+            
+            # Ticker'ları dictionary formatına çevir
+            tickers = {}
+            for ticker in tickers_data:
+                currency_pair = ticker['currency_pair']
+                symbol = currency_pair.replace('_USDT', '')
+                tickers[symbol] = ticker
+            
+            pusu_candidates = []
+            
+            # %20+ artış gösteren coinleri bul
+            for symbol, ticker in tickers.items():
+                try:
+                    change_percentage = float(ticker.get('change_percentage', 0))
+                    
+                    # %20+ artış kontrolü
+                    if change_percentage >= 20:
+                        pusu_candidates.append((symbol, ticker))
+                        
+                except (ValueError, TypeError):
+                    continue
+            
+            print(f"🔍 {len(pusu_candidates)} adet %20+ artış tespit edildi")
+            
+            # Her aday için 95 mum analizi yap
+            for symbol, ticker in pusu_candidates:
+                try:
+                    # 95 adet 15 dakikalık mum al
+                    candles = self.gateio_api.get_candles(symbol, '15m', 95)
+                    if not candles or len(candles) < 95:
+                        continue
+                    
+                    # 95 mumun her birini kontrol et
+                    is_stable = True
+                    for candle in candles:
+                        try:
+                            high = float(candle['h'])  # En yüksek fiyat
+                            low = float(candle['l'])   # En düşük fiyat
+                            
+                            # Mum içi maksimum değişim
+                            max_change = ((high - low) / low) * 100
+                            
+                            # Eğer herhangi bir mum %19'u geçerse
+                            if max_change >= 19:
+                                is_stable = False
+                                break
+                                
+                        except (ValueError, TypeError, KeyError):
+                            continue
+                    
+                    # Eğer 95 mumun hepsi %19'un altındaysa
+                    if is_stable:
+                        print(f"🎯 {symbol} PUSU Sinyal adayı - 95 mum stabil")
+                        self._send_pusu_signal(symbol, ticker, current_time)
+                        
+                except Exception as e:
+                    print(f"PUSU analiz hatası {symbol}: {e}")
+                    continue
+                    
+        except Exception as e:
+            print(f"PUSU Sinyal kontrol hatası: {e}")
+    
+    def _send_pusu_signal(self, symbol, ticker, current_time):
+        """PUSU Sinyal gönder"""
+        try:
+            currency_pair = f"{symbol}_USDT"
+            change_percentage = float(ticker.get('change_percentage', 0))
+            price = float(ticker.get('last', 0))
+            volume_24h = float(ticker.get('base_volume', 0))
+            
+            # PUSU Sinyal mesajı hazırla
+            message = self._format_pusu_message(symbol, change_percentage, price, volume_24h)
+            
+            # Telegram'a gönder
+            if self.telegram_bot.send_message(message):
+                print(f"✅ {symbol} PUSU Sinyal gönderildi")
+            else:
+                print(f"❌ {symbol} PUSU Sinyal gönderilemedi")
+                
+        except Exception as e:
+            print(f"PUSU Sinyal gönderme hatası {symbol}: {e}")
+    
+    def _format_pusu_message(self, symbol, change_percentage, price, volume_24h):
+        """PUSU Sinyal mesajını formatla"""
+        try:
+            # Hacim kategorisi
+            if volume_24h >= Config.MEDIUM_VOLUME_THRESHOLD:
+                volume_category = "Yüksek Hacim"
+            elif volume_24h >= Config.LOW_VOLUME_THRESHOLD:
+                volume_category = "Orta Hacim"
+            else:
+                volume_category = "Düşük Hacim"
+            
+            # 5 dakikalık hacim (yaklaşık)
+            volume_5m = volume_24h / 288  # 24 saat = 288 * 5 dakika
+            
+            message = f""" PUSU SİNYALİ TESPİT EDİLDİ! 
+
+#{symbol} • PUSU SİNYAL
+Olağan dışı durum tespit edildi
+
+ 24h Volatilite: <19%
+ Ani Artış: {change_percentage:.2f}%
+💰 Fiyat: ${price:.6f}
+📊 5dk Hacim: ${volume_5m:,.0f}
+📈 24h Hacim: ${volume_24h:,.0f}
+🏷️ Hacim: {volume_category}
+
+⚠️ Dikkat: Bu coin 24 saat boyunca düz çizgi halindeydi!"""
+            
+            return message
+            
+        except Exception as e:
+            print(f"PUSU mesaj format hatası: {e}")
+            return f" PUSU SİNYALİ TESPİT EDİLDİ! #{symbol} • Artış: {change_percentage:.2f}%"

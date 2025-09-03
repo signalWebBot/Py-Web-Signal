@@ -152,3 +152,43 @@ class GateioAPI:
             return "--- Orta Hacim ---"
         else:
             return "--- Yüksek Hacim ---"
+    
+    def get_candles(self, symbol: str, interval: str = '15m', limit: int = 100) -> Optional[List[Dict]]:
+        """Belirli bir coin için mum verilerini çeker"""
+        try:
+            currency_pair = f"{symbol}_USDT"
+            url = f"{self.base_url}/spot/candlesticks"
+            
+            params = {
+                'currency_pair': currency_pair,
+                'interval': interval,
+                'limit': limit
+            }
+            
+            response = self.session.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Gate.io mum formatı: [timestamp, volume, close, high, low, open]
+            candles = []
+            for candle_data in data:
+                if len(candle_data) >= 6:
+                    candle = {
+                        't': int(candle_data[0]),  # timestamp
+                        'v': float(candle_data[1]),  # volume
+                        'c': float(candle_data[2]),  # close
+                        'h': float(candle_data[3]),  # high
+                        'l': float(candle_data[4]),  # low
+                        'o': float(candle_data[5])   # open
+                    }
+                    candles.append(candle)
+            
+            return candles
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Candles API hatası ({symbol}): {e}")
+            return None
+        except Exception as e:
+            print(f"Candles beklenmeyen hata ({symbol}): {e}")
+            return None
