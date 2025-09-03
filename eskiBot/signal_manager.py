@@ -572,7 +572,7 @@ class SignalManager:
             return []
     
     def check_pusu_signals(self, current_time):
-        """PUSU Sinyal kontrolü - 95 mum analizi ile"""
+        """PUSU Sinyal kontrolü - 48 mum (12 saat) hareket ortalaması ile"""
         try:
             print("🎯 PUSU Sinyal kontrolü başlatılıyor...")
             
@@ -588,32 +588,18 @@ class SignalManager:
                 symbol = currency_pair.replace('_USDT', '')
                 tickers[symbol] = ticker
             
-            pusu_candidates = []
+            print(f"🔍 {len(tickers)} adet coin analiz ediliyor...")
             
-            # %20+ artış gösteren coinleri bul
+            # Her coin için 48 mum analizi yap
             for symbol, ticker in tickers.items():
                 try:
-                    change_percentage = float(ticker.get('change_percentage', 0))
-                    
-                    # %20+ artış kontrolü
-                    if change_percentage >= 20:
-                        pusu_candidates.append((symbol, ticker))
-                        
-                except (ValueError, TypeError):
-                    continue
-            
-            print(f"🔍 {len(pusu_candidates)} adet %20+ artış tespit edildi")
-            
-            # Her aday için 95 mum analizi yap
-            for symbol, ticker in pusu_candidates:
-                try:
-                    # 95 adet 15 dakikalık mum al
-                    candles = self.gateio_api.get_candles(symbol, '15m', 95)
-                    if not candles or len(candles) < 95:
+                    # 48 adet 15 dakikalık mum al (12 saat)
+                    candles = self.gateio_api.get_candles(symbol, '15m', 48)
+                    if not candles or len(candles) < 48:
                         continue
                     
-                    # 95 mumun her birini kontrol et
-                    is_stable = True
+                    # Son 48 mumun hareket ortalamasını hesapla
+                    movements = []
                     for candle in candles:
                         try:
                             high = float(candle['h'])  # En yüksek fiyat
@@ -621,19 +607,27 @@ class SignalManager:
                             
                             # Mum içi maksimum değişim
                             max_change = ((high - low) / low) * 100
-                            
-                            # Eğer herhangi bir mum %19'u geçerse
-                            if max_change >= 19:
-                                is_stable = False
-                                break
+                            movements.append(max_change)
                                 
                         except (ValueError, TypeError, KeyError):
                             continue
                     
-                    # Eğer 95 mumun hepsi %19'un altındaysa
-                    if is_stable:
-                        print(f"🎯 {symbol} PUSU Sinyal adayı - 95 mum stabil")
-                        self._send_pusu_signal(symbol, ticker, current_time)
+                    if len(movements) < 48:
+                        continue
+                    
+                    # Hareket ortalaması hesapla
+                    avg_movement = sum(movements) / len(movements)
+                    
+                    # 3x eşik belirle
+                    threshold = avg_movement * 3
+                    
+                    # Şu anki fiyat değişimi
+                    current_change = float(ticker.get('change_percentage', 0))
+                    
+                    # Anormal artış kontrolü
+                    if current_change > threshold and current_change > 5:  # Minimum %5 artış
+                        print(f"🎯 {symbol} PUSU Sinyal! Ortalama: {avg_movement:.2f}%, Eşik: {threshold:.2f}%, Mevcut: {current_change:.2f}%")
+                        self._send_pusu_signal(symbol, ticker, current_time, avg_movement, threshold)
                         
                 except Exception as e:
                     print(f"PUSU analiz hatası {symbol}: {e}")
@@ -642,7 +636,7 @@ class SignalManager:
         except Exception as e:
             print(f"PUSU Sinyal kontrol hatası: {e}")
     
-    def _send_pusu_signal(self, symbol, ticker, current_time):
+    def _send_pusu_signal(self, symbol, ticker, current_time, avg_movement, threshold):
         """PUSU Sinyal gönder"""
         try:
             currency_pair = f"{symbol}_USDT"
@@ -651,7 +645,7 @@ class SignalManager:
             volume_24h = float(ticker.get('base_volume', 0))
             
             # PUSU Sinyal mesajı hazırla
-            message = self._format_pusu_message(symbol, change_percentage, price, volume_24h)
+            message = self._format_pusu_message(symbol, change_percentage, price, volume_24h, avg_movement, threshold)
             
             # Telegram'a gönder
             if self.telegram_bot.send_message(message):
@@ -662,7 +656,7 @@ class SignalManager:
         except Exception as e:
             print(f"PUSU Sinyal gönderme hatası {symbol}: {e}")
     
-    def _format_pusu_message(self, symbol, change_percentage, price, volume_24h):
+    def _format_pusu_message(self, symbol, change_percentage, price, volume_24h, avg_movement, threshold):
         """PUSU Sinyal mesajını formatla"""
         try:
             # Hacim kategorisi
@@ -679,19 +673,21 @@ class SignalManager:
             message = f""" PUSU SİNYALİ TESPİT EDİLDİ! 
 
 #{symbol} • PUSU SİNYAL
-Olağan dışı durum tespit edildi
+Anormal artış tespit edildi!
 
- 24h Volatilite: <19%
+📊 12h Ortalama: {avg_movement:.2f}%
+🎯 3x Eşik: {threshold:.2f}%
  Ani Artış: {change_percentage:.2f}%
 💰 Fiyat: ${price:.6f}
 📊 5dk Hacim: ${volume_5m:,.0f}
 📈 24h Hacim: ${volume_24h:,.0f}
 🏷️ Hacim: {volume_category}
 
-⚠️ Dikkat: Bu coin 24 saat boyunca düz çizgi halindeydi!"""
+⚠️ Dikkat: Bu coin 12 saat boyunca düşük volatilitedeydi!"""
             
             return message
             
         except Exception as e:
             print(f"PUSU mesaj format hatası: {e}")
             return f" PUSU SİNYALİ TESPİT EDİLDİ! #{symbol} • Artış: {change_percentage:.2f}%"
+
